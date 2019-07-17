@@ -3,7 +3,7 @@ val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(exercises, answers)
+  .aggregate(exercises, answers, examples)
   .settings(commonSettings)
   .settings(
     name := "fpinscala"
@@ -19,4 +19,10 @@ lazy val answers = (project in file("answers"))
   .settings(commonSettings)
   .settings(
     name := "answers"
+  )
+
+lazy val examples = (project in file("examples"))
+  .settings(commonSettings)
+  .settings(
+    name:="examples"
   )
