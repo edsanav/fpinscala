@@ -69,11 +69,18 @@ object List { // `List` companion object. Contains functions for creating and wo
     case Cons(h, xs) if f(h) => dropWhile(xs,f)
   }
 
-  def init[A](l: List[A]): List[A] = ???
+  def init[A](l: List[A]): List[A] = l match {
+    case Nil => sys.error("Can not init an empty list")
+    case Cons(_, Nil) => Nil
+    case Cons(_, xs) => init(xs)
+  }
 
   def length[A](l: List[A]): Int = foldRight(l, 0)((_, second:Int) => 1 + second )
 
-  def foldLeft[A,B](l: List[A], z: B)(f: (B, A) => B): B = ???
+  def foldLeft[A,B](l: List[A], z: B)(f: (B, A) => B): B = l match {
+    case Nil => z
+    case Cons(x, xs) => foldLeft(xs, f(z,x))(f)
+  }
 
   def map[A,B](l: List[A])(f: A => B): List[B] = l match {
     case Nil => Nil
