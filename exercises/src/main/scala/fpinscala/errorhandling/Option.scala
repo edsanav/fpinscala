@@ -18,7 +18,7 @@ sealed trait Option[+A] {
 
   def orElse[B>:A](ob: => Option[B]): Option[B] = this match {
     case None => ob
-    case _ => ???
+    case Some(x) => Some(x)
   }
 
   def filter(f: A => Boolean): Option[A] = this match {
@@ -47,14 +47,27 @@ object Option {
     catch { case e: Exception => 43 }
   }
 
-  def mean(xs: Seq[Double]): Option[Double] =
+  def mean(xs: Seq[Double]): Option[Double] = {
     if (xs.isEmpty) None
     else Some(xs.sum / xs.length)
-  def variance(xs: Seq[Double]): Option[Double] = ???
+  }
 
-  def map2[A,B,C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = ???
+  def variance(xs: Seq[Double]): Option[Double] = {
+    mean(xs).flatMap(m=>mean(xs.map((x)=>math.pow(x-m,2))))
+  }
 
-  def sequence[A](a: List[Option[A]]): Option[List[A]] = ???
+  def map2[A,B,C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = {
+    a.flatMap( aa => b.map(bb=>f(aa,bb)))
+  }
 
-  def traverse[A, B](a: List[A])(f: A => Option[B]): Option[List[B]] = ???
+  def sequence[A](a: List[Option[A]]): Option[List[A]] = {
+    a.foldRight[Option[List[A]]](
+      Some(List[A]())
+    )(
+      (aa:Option[A],z:Option[List[A]])=>map2(aa,z)(_::_))
+  }
+
+  def traverse[A, B](a: List[A])(f: A => Option[B]): Option[List[B]] = {
+    sequence(a.map(f))
+  }
 }
