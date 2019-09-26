@@ -24,13 +24,29 @@ trait Stream[+A] {
     case _ => Empty
   }
 
-  def drop(n: Int): Stream[A] = ???
+  def drop(n: Int): Stream[A] = this match {
+    case Cons(_, t) if n > 1 => t().drop(n-1)
+    case Cons(_, t) if n == 1 => t()
+    case xs => this
+  }
 
-  def takeWhile(p: A => Boolean): Stream[A] = ???
+  def takeWhile(p: A => Boolean): Stream[A] = this match {
+    case Cons(h,t) if p(h()) => cons(h(), t().takeWhile(p))
+    case _ => empty
+  }
 
-  def forAll(p: A => Boolean): Boolean = ???
+  def forAll(p: A => Boolean): Boolean = this match {
+    case Cons(h, t) if p(h()) => t().forAll(p)
+    case _ => false
+  }
 
-  def headOption: Option[A] = ???
+  def forAll2(p: A => Boolean): Boolean =
+    foldRight(true)((a,b)=> p(a) && b)
+
+  def headOption: Option[A] = this match {
+    case Empty => None
+    case Cons(h, _) => Some(h())
+  }
 
   // 5.7 map, filter, append, flatmap using foldRight. Part of the exercise is
   // writing your own function signatures.
