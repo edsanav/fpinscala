@@ -76,9 +76,12 @@ trait Stream[+A] {
   def filter[B](p:A=>Boolean):Stream[A] =
     foldRight(empty[A])((a,b)=> if (p(a)) cons(a, b.filter(p)) else b.filter(p))
 
-  def append[B>:A](s: => Stream[B]): Stream[B] = ???
+  def append[B>:A](s: => Stream[B]): Stream[B] =
+    foldRight(s)((a,b)=>cons(a,b))
+  //foldRight(s)({(a,b)=>cons(a,b)}:(A, =>Stream[B]) =>Stream[B])
 
-  def flatMap[B](f:A=>Stream[B]):Stream[B] = ???
+  def flatMap[B](f:A=>Stream[B]):Stream[B] =
+    foldRight(empty[B])((a,b)=> f(a).append(b))
 
   def startsWith[B](s: Stream[B]): Boolean = ???
 }
@@ -99,7 +102,19 @@ object Stream {
     else cons(as.head, apply(as.tail: _*))
 
   val ones: Stream[Int] = Stream.cons(1, ones)
-  def from(n: Int): Stream[Int] = ???
+
+  def constant[A](a:A):Stream[A] = Stream.cons(a, constant(a))
+
+  def from(n: Int): Stream[Int] = Stream(n).append(from(n+1))
+
+  def from2(n:Int):Stream[Int] = Stream.cons(n, from2(n+1))
+
+  val fibs: Stream[Int] = {
+    def go(n:Int, next:Int):Stream[Int] = {
+        cons(n, go(next, n+next))
+    }
+    go(0,1)
+  }
 
   def unfold[A, S](z: S)(f: S => Option[(A, S)]): Stream[A] = ???
 }
