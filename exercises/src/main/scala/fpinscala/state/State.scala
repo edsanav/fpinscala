@@ -97,7 +97,7 @@ object RNG {
   }
 
   def ints(count: Int)(rng: RNG): (List[Int], RNG) = {
-    rng_times_other(count)(_.nextInt)(rng)
+    rng_times_other(count)(int)(rng)
   }
 
   def doubleThroughMap(rng: RNG): (Double, RNG) = {
@@ -112,7 +112,29 @@ object RNG {
     }
   }
 
-  def sequence[A](fs: List[Rand[A]]): Rand[List[A]] = ???
+  def sequence[A](fs: List[Rand[A]]): Rand[List[A]] = {
+    @tailrec
+    def go(xs:List[Rand[A]], accum:List[A])(rng:RNG):(List[A],RNG) = {
+      xs.headOption match {
+        case None => (accum, rng)
+        case Some(rs) => {
+          val (nextA, nextRNG) = rs(rng)
+          go(xs.tail, nextA::accum)(nextRNG)
+        }
+      }
+    }
+    go(fs, List())
+  }
+  //TODO rewrite sequence using foldRight
+
+  def sequenceFR[A](fs: List[Rand[A]]): Rand[List[A]] = {
+  ???
+    //    rng => fs.foldRight(List.empty[A])(rs => rs())
+  }
+
+  def intsSeq(count: Int)(rng: RNG): (List[Int], RNG) = {
+    sequence(List.fill(count)(RNG.int))(rng)
+  }
 
   def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] = ???
 }
