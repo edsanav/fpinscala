@@ -123,20 +123,45 @@ object RNG {
         }
       }
     }
-    go(fs, List())
+    RNG.map(go(fs, List()))(_.reverse)
   }
   //TODO rewrite sequence using foldRight
 
   def sequenceFR[A](fs: List[Rand[A]]): Rand[List[A]] = {
-  ???
-    //    rng => fs.foldRight(List.empty[A])(rs => rs())
+   fs.foldRight(unit(List.empty[A]))((xs, acc)=>map2(xs,acc)(_::_))
   }
 
   def intsSeq(count: Int)(rng: RNG): (List[Int], RNG) = {
     sequence(List.fill(count)(RNG.int))(rng)
   }
 
-  def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] = ???
+  def intsSeqFR(count: Int)(rng: RNG): (List[Int], RNG) = {
+    sequenceFR(List.fill(count)(RNG.int))(rng)
+  }
+
+  def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] = {
+    rng => {
+      val (a, rng2) = f(rng)
+      g(a)(rng2)
+    }
+  }
+
+  def nonNegativeLessThan(n:Int):Rand[Int] = {
+    flatMap(nonNegativeInt)(a =>{
+      val mod = a % n
+      if (a + (n-1) - mod >= 0) unit(a)
+      else nonNegativeLessThan(n)
+      }
+    )
+  }
+
+  def mapFM[A,B](s: Rand[A])(f: A => B): Rand[B] =  {
+    flatMap(s)(a =>unit(f(a)))
+  }
+
+  def map2[A,B,C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = {
+    flatMap(ra)(a => mapFM(rb)(b => f(a,b)))
+  }
 }
 
 case class State[S,+A](run: S => (A, S)) {
