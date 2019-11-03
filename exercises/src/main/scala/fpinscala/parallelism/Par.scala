@@ -134,13 +134,13 @@ object Par {
       run(es)(choices(ind)) // the same as choices(ind)(es), but using the approipate function
   }
 
-  def choice[A](cond: Par[Boolean])(t: Par[A], f: Par[A]): Par[A] = {
+  def choiceWithChoiceN[A](cond: Par[Boolean])(t: Par[A], f: Par[A]): Par[A] = {
     choiceN(map(cond)(x => if (x) 0 else 1))(List(t, f))
   }
 
   def choiceMap[K,V](key: Par[K])(choices: Map[K,Par[V]]): Par[V] = {
     es =>
-      val res = run(es)(key)
+      val res = run(es)(key).get
       run(es)(choices(res))
   }
 
@@ -174,7 +174,7 @@ object Par {
     flatMap(a)(p=>p)
   }
 
-  def map2[A,B,C](a: Par[A], b: Par[B])(f: (A,B) => C): Par[C] = {
+  def map2FM[A,B,C](a: Par[A], b: Par[B])(f: (A,B) => C): Par[C] = {
     flatMap(a)(aa => flatMap(b)(bb=> unit(f(aa,bb))))
   }
 
