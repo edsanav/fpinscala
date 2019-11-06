@@ -93,20 +93,29 @@ trait Stream[+A] {
       case _ => None
     }
 
-  def zipWith[B](s2: Stream[B]): Stream[(A, B)] =
+  def zipWith[B,C](s2: Stream[B])(f: (A,B) => C): Stream[C] =
     unfold((this, s2)) {
-      case (Cons(h, t), Cons(h2, t2)) => Some((h(), h2()), (t(), t2()))
+      case (Cons(h1,t1), Cons(h2,t2)) =>
+        Some((f(h1(), h2()), (t1(), t2())))
       case _ => None
     }
 
-  def zipAll[B](s2: Stream[B]): Stream[(Option[A], Option[B])] =
-    unfold((this, s2)) {
-      case (Cons(h, t), Cons(h2, t2)) => Some((Some(h()), Some(h2())), (t(), t2()))
-      case (Cons(h, t), Empty) => Some((Some(h()), None), (t(), Empty))
-      case (Empty, Cons(h2, t2)) => Some((None, Some(h2())), (Empty, t2()))
-      case _ => None
+  // special case of `zipWith`
+  def zip[B](s2: Stream[B]): Stream[(A,B)] =
+    zipWith(s2)((_,_))
 
+
+  def zipAll[B](s2: Stream[B]): Stream[(Option[A],Option[B])] =
+    zipWithAll(s2)((_,_))
+
+  def zipWithAll[B, C](s2: Stream[B])(f: (Option[A], Option[B]) => C): Stream[C] =
+    Stream.unfold((this, s2)) {
+      case (Empty, Empty) => None
+      case (Cons(h, t), Empty) => Some(f(Some(h()), Option.empty[B]) -> (t(), empty[B]))
+      case (Empty, Cons(h, t)) => Some(f(Option.empty[A], Some(h())) -> (empty[A] -> t()))
+      case (Cons(h1, t1), Cons(h2, t2)) => Some(f(Some(h1()), Some(h2())) -> (t1() -> t2()))
     }
+
 
   def filter[B](p: A => Boolean): Stream[A] =
     foldRight(empty[A])((a, b) => if (p(a)) cons(a, b.filter(p)) else b.filter(p))
@@ -118,9 +127,6 @@ trait Stream[+A] {
 
   def flatMap[B](f: A => Stream[B]): Stream[B] =
     foldRight(empty[B])((a, b) => f(a).append(b))
-
-  def startsWithNotEfficient[B](s: Stream[B]): Boolean =
-    s.toList == zipWith(s).filter { case (a, b) => a == b }.map { case (_, b) => b }.toList
 
   def startsWith[B](s: Stream[B]): Boolean =
     zipAll(s).takeWhile(!_._2.isEmpty) forAll { // you need the zipAll so it allows blanks on the first stream, then filter, and do the forall
