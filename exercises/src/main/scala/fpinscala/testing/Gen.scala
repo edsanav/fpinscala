@@ -116,6 +116,16 @@ object Prop {
       prop.run(max,n,rng)
   }
 
+  def run(p: Prop,
+          maxSize: Int = 100,
+          testCases: Int = 100,
+          rng: RNG = RNG.Simple(System.currentTimeMillis)): Unit =
+    p.run(maxSize, testCases, rng) match {
+      case Falsified(msg, n) =>
+        println(s"! Falsified after $n passed tests:\n $msg")
+      case Passed =>
+        println(s"+ OK, passed $testCases tests.")
+    }
 
 
 }
@@ -189,7 +199,11 @@ object Gen {
         if (d < g1Threshold) g1._1.sample else g2._1.sample))
     }
 
-    def listOfN[A](g: Gen[A]): SGen[List[A]] = SGen((n:Int)=>g.listOfN(n))
+    def listOf[A](g: Gen[A]): SGen[List[A]] = SGen(n => g.listOfN(n))
+
+    def listOf1[A](g: Gen[A]): SGen[List[A]] = SGen(n => g.listOfN(n max 1))
+
+
 }
 
 case class SGen[+A](g: Int => Gen[A]){
@@ -204,7 +218,30 @@ case class SGen[+A](g: Int => Gen[A]){
     SGen((n:Int) => g(n).flatMap( (a:A) => f(a)(n)))
   }
 
-  def listOfN(size: Int): SGen[List[A]] = SGen((n:Int) => g(n).listOfN(size))
+//  def listOfN(size: Int): SGen[List[A]] = SGen((n:Int) => g(n).listOfN(size))
+
+
+}
+
+object examples {
+
+  val smallInt = Gen.choose(-10,10)
+  val maxProp = forAll(listOf1(smallInt)) { ns =>
+    val max = ns.max
+    !ns.exists(_ > max)
+  }
+
+  val sortedProp = forAll(listOf(smallInt)){ ns =>
+    val nss = ns.sorted
+    (
+      nss.isEmpty ||
+      nss.tail.isEmpty ||
+      !nss.zip(nss.tail).exists{case (a,b) => a > b}
+      ) && ns.forall(nss.contains(_)) && nss.forall(ns.contains(_))
+
+  }
+
+
 
 
 }
