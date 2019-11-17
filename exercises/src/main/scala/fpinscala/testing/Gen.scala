@@ -29,8 +29,8 @@ case class Prop(run: (MaxSize, TestCases, RNG) => Result) {
   def &&(p:Prop):Prop = Prop(
     (max, n, rng) => {
       run(max, n,rng) match {
-        case Passed => p.run(max, n,rng)
-        case x => x
+        case Passed | Proved => p.run(max, n, rng)
+        case Falsified(msg, successes) => Falsified(msg, successes)
       }
     }
   )
@@ -69,12 +69,21 @@ object Prop {
   sealed trait Result {
     def isFalsified: Boolean
   }
+
   case object Passed extends Result {
     def isFalsified = false
   }
+
+  case object Proved extends Result{
+    def isFalsified = false
+  }
+
   case class Falsified(failure: FailedCase, successes: SuccessCount) extends Result {
     def isFalsified = true
   }
+
+
+
 
   def forAll[A](as: Gen[A])(f: A => Boolean): Prop = Prop(
     (n,rng) => {
@@ -104,11 +113,13 @@ object Prop {
   def forAll[A](g: SGen[A])(f: A => Boolean): Prop =
     forAll(g(_))(f)
 
+  // The only purpose of max is to determine the number of test cases which can be either the corresponding number in
+  // this step or max (n min max)
   def forAll[A](g: Int => Gen[A])(f: A => Boolean): Prop = Prop {
     (max,n,rng) =>
       val casesPerSize = (n + (max - 1)) / max
       val props: Stream[Prop] =
-        Stream.from(0).take((n min max) + 1).map(i => forAll(g(i))(f))
+        Stream.from(0).take((n min max) + 1).map(i => forAll(g(i))(f)) //this forAll is the first one, the only one accept a Gen[A], adapter through the alternate constructor
       val prop: Prop =
         props.map(p => Prop { (max, _, rng) =>
           p.run(max, casesPerSize, rng)
@@ -125,11 +136,30 @@ object Prop {
         println(s"! Falsified after $n passed tests:\n $msg")
       case Passed =>
         println(s"+ OK, passed $testCases tests.")
+      case Proved =>
+        println(s"+ OK, proved property.")
     }
+
+    def check(p: => Boolean): Prop = Prop { (_, _, _) =>
+      if (p) Proved else Falsified("()", 0)
+    }
+
+  val S = weighted(
+    choose(1,4).map(Executors.newFixedThreadPool) -> .75,
+    unit(Executors.newCachedThreadPool) -> .25)
+
+
+
+  def forAllPar[A](g: Gen[A])(f: A => Par[Boolean]): Prop =
+    forAll(S ** g) { case s ** a => f(a)(s).get }
+
+  def checkPar(p: Par[Boolean]): Prop = forAllPar(unit())(_ => p)
+
+  def equal[A](p: Par[A], p2: Par[A]): Par[Boolean] =
+    Par.map2(p,p2)(_ == _)
 
 
 }
-
 
 // case class State[S,A](run: S => (A,S))
 case class Gen[+A](sample: State[RNG,A]) {
@@ -147,7 +177,11 @@ case class Gen[+A](sample: State[RNG,A]) {
 
   def unsized: SGen[A] = SGen((_:Int) => this)
 
+  def **[B](g: Gen[B]): Gen[(A,B)] =
+    (this map2 g)((_,_))
+
 }
+
 
 object Gen {
 
@@ -204,6 +238,11 @@ object Gen {
     def listOf1[A](g: Gen[A]): SGen[List[A]] = SGen(n => g.listOfN(n max 1))
 
 
+    object ** {
+      def unapply[A,B](p: (A,B)) = Some(p)
+    }
+
+
 }
 
 case class SGen[+A](g: Int => Gen[A]){
@@ -217,8 +256,6 @@ case class SGen[+A](g: Int => Gen[A]){
   def flatMap[B](f: A => SGen[B]): SGen[B] = {
     SGen((n:Int) => g(n).flatMap( (a:A) => f(a)(n)))
   }
-
-//  def listOfN(size: Int): SGen[List[A]] = SGen((n:Int) => g(n).listOfN(size))
 
 
 }
@@ -240,6 +277,52 @@ object examples {
       ) && ns.forall(nss.contains(_)) && nss.forall(ns.contains(_))
 
   }
+
+  val ES: ExecutorService = Executors.newCachedThreadPool
+  val p1 = Prop.forAll(Gen.unit(Par.unit(1)))(i =>
+    Par.map(i)(_ + 1)(ES).get == Par.unit(2)(ES).get)
+
+  val p2 = Prop.check {
+    val p = Par.map(Par.unit(1))(_ + 1)
+    val p2 = Par.unit(2)
+    p(ES).get == p2(ES).get
+  }
+
+
+  val p3 = Prop.checkPar{
+    equal(
+      Par.map(Par.unit(1))(_ + 1),
+      Par.unit(2)
+    )
+  }
+
+  val pint:Gen[Par[Int]] = Gen.choose(0,10) map (Par.unit)
+
+  val p4 =
+    forAllPar(pint)(n => equal(Par.map(n)(y => y), n))
+
+
+  val pint2: Gen[Par[Int]] =
+    choose(-100, 100).listOfN(2).map(l =>
+    l.foldLeft(Par.unit(0))((p,i) => Par.fork{Par.map2(p, Par.unit((i)))(_ + _)})
+    )
+
+  val p5 =
+    forAllPar(pint2)(n => equal(Par.map(n)(y => y), n))
+
+  val p6 =
+    forAllPar(pint2)(n => equal(Par.fork(n), n))
+
+
+
+  val p7 =
+    forAll(listOfN(10, smallInt)){l => {
+      (l.takeWhile(_ => true) == l) &&
+              (l.takeWhile(_ => false) == Nil) &&
+              l.takeWhile(_ > 0).forall(_ > 0)
+
+    }
+    }
 
 
 
