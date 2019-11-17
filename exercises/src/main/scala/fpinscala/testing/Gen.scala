@@ -317,9 +317,13 @@ object examples {
 
   val p7 =
     forAll(listOfN(10, smallInt)){l => {
-      (l.takeWhile(_ => true) == l) &&
-              (l.takeWhile(_ => false) == Nil) &&
-              l.takeWhile(_ > 0).forall(_ > 0)
+      (
+        (l.takeWhile(_ => true) == l) &&
+        (l.takeWhile(_ => false) == Nil) &&
+          l.takeWhile(_ > 0).forall(_ > 0) &&
+          (l.takeWhile(_>0) ++ l.dropWhile(_>0) == l)
+        )
+
 
     }
     }
