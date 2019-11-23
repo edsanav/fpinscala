@@ -30,6 +30,10 @@ trait Parsers[Parser[+ _]] {
     (a: A) => p2.map((b: B) => f(a, b))
   )
 
+  def map2ListComprehension[A, B, C](p: Parser[A], p2: => Parser[B])(f: (A, B) => C): Parser[C] = {
+    for {a <- p; b <- p2} yield f(a,b)
+  }
+
   def map2WithProduct[A, B, C](p: Parser[A], p2: Parser[B])(f: (A, B) => C): Parser[C] = product(p, p2).map(f.tupled)
 
   def product[A, B](p: Parser[A], p2: => Parser[B]): Parser[(A, B)] = p.flatMap((a:A) => p2.map((b: B) => (a,b)))
@@ -51,6 +55,12 @@ trait Parsers[Parser[+ _]] {
   def count[A](p: Parser[Char]): Parser[Int] = many(p).map(_.size)
 
   def numAs[A]:Parser[List[String]] = "^[0-9]*".r.slice.flatMap(s => listOfN(s.toInt, "a"))
+
+  def numAsBook[A]:Parser[List[String]] = for {
+    digit <- "[0-9]+".r
+    val n = digit.toInt // we really should catch exceptions thrown by toInt and convert to parse failure
+    _ <- listOfN(n, char('a'))
+  } yield n
 
   def unbiasL[A, B, C](p: ((A, B), C)): (A, B, C) = (p._1._1, p._1._2, p._2)
 
