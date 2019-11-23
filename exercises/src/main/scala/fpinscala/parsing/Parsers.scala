@@ -59,8 +59,8 @@ trait Parsers[Parser[+ _]] {
   def numAsBook[A]:Parser[List[String]] = for {
     digit <- "[0-9]+".r
     val n = digit.toInt // we really should catch exceptions thrown by toInt and convert to parse failure
-    _ <- listOfN(n, char('a'))
-  } yield n
+    result <- listOfN(n, "a")
+  } yield result
 
   def unbiasL[A, B, C](p: ((A, B), C)): (A, B, C) = (p._1._1, p._1._2, p._2)
 
