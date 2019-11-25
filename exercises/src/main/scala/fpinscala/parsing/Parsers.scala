@@ -19,6 +19,7 @@ trait Parsers[Parser[+ _]] {
   implicit def operators[A](p: Parser[A]) = ParserOps[A](p)
 
   def slice[A](p: Parser[A]): Parser[String]
+
   def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A]
   def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B]
 
@@ -62,9 +63,12 @@ trait Parsers[Parser[+ _]] {
     result <- listOfN(n, "a")
   } yield result
 
+
   def unbiasL[A, B, C](p: ((A, B), C)): (A, B, C) = (p._1._1, p._1._2, p._2)
 
   def unbiasR[A, B, C](p: (A, (B, C))): (A, B, C) = (p._1, p._2._1, p._2._2)
+
+  def middle[A,B,C](p:(A,B,C)):B = p._2
 
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
@@ -110,6 +114,16 @@ trait Parsers[Parser[+ _]] {
       )(in)
 
   }
+
+  /** Parser which consumes zero or more whitespace characters. */
+  def whitespace: Parser[String] = "\\s*".r
+
+  /** Parser which consumes 1 or more digits. */
+  def digits: Parser[String] = "\\d+".r
+
+  /** Parser which consumes 1 or more digits. */
+  def letters: Parser[String] = "[a-zA-Z]+".r
+
 
 }
 
