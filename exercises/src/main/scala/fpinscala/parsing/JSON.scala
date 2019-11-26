@@ -17,14 +17,18 @@ object JSON {
   def jsonParser[Parser[+_]](P: Parsers[Parser]): Parser[JSON] = {
     import P._
 
-    def quoted: Parser[String] = (char('"') ** letters ** char('"')).map(unbiasL).map(middle)
-
-    def entry:Parser[(String, JSON)] = (quoted ** char('.') ** jsonParser(P)).map(unbiasL).map(p => (p._1, p._3))
-
+    type Quoted = (Char,String,Char)
     val spaces = char(' ').many.slice
 
-    def root:Parser[JSON] = ???
+    def quoted: Parser[Quoted] = (char('"') ** letters ** char('"')).map(unbiasL)
 
-      ???
+    def key:Parser[(Quoted, Char)] = quoted ** char(':').lstrip(whitespace)
+
+    def entry:Parser[(String, JSON)] = key.map(_._1._2) ** jsonParser(P).strip(whitespace).rstrip(char(','))
+
+    def jobject:Parser[JObject] = many(entry.strip(whitespace)).map(entry => JObject(entry.toMap))
+
+    def root:Parser[JSON] = ???
+    ???
   }
 }
