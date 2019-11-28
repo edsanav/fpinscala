@@ -80,6 +80,11 @@ trait Parsers[Parser[+ _]] {
   def unbiasR[A, B, C](p: (A, (B, C))): (A, B, C) = (p._1, p._2._1, p._2._2)
   def middle[A,B,C](p:(A,B,C)):B = p._2
 
+  def tuple3[A,B,C](p:Parser[A], p2:Parser[B], p3:Parser[C]):Parser[(A,B,C)] = ((p ** p2) ** p3).map(unbiasL)
+  def between[A,B](p:Parser[A], p2:Parser[B]):Parser[(B,A,B)] = tuple3(p2,p,p2)
+
+  def opt[A](p:Parser[A]): Parser[Option[A]] = or(p.map(Some(_)), succeed(None))
+
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
 
@@ -103,6 +108,7 @@ trait Parsers[Parser[+ _]] {
     def rstrip[B](p2: Parser[B]):Parser[A] = self.rstrip(p, p2)
     def strip[B](p2: Parser[B]):Parser[A] = self.strip(p, p2)
 
+    def between[B](p2: Parser[B]):Parser[(B,A,B)] = self.between(p, p2)
 
   }
 
