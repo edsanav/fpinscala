@@ -21,6 +21,7 @@ trait Parsers[Parser[+ _]] {
   def slice[A](p: Parser[A]): Parser[String]
 
   def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A]
+
   def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B]
 
   def map[A, B](p: Parser[A])(f: A => B): Parser[B] = p.flatMap(a => succeed(f(a)))
@@ -32,12 +33,12 @@ trait Parsers[Parser[+ _]] {
   )
 
   def map2ListComprehension[A, B, C](p: Parser[A], p2: => Parser[B])(f: (A, B) => C): Parser[C] = {
-    for {a <- p; b <- p2} yield f(a,b)
+    for {a <- p; b <- p2} yield f(a, b)
   }
 
   def map2WithProduct[A, B, C](p: Parser[A], p2: Parser[B])(f: (A, B) => C): Parser[C] = product(p, p2).map(f.tupled)
 
-  def product[A, B](p: Parser[A], p2: => Parser[B]): Parser[(A, B)] = p.flatMap((a:A) => p2.map((b: B) => (a,b)))
+  def product[A, B](p: Parser[A], p2: => Parser[B]): Parser[(A, B)] = p.flatMap((a: A) => p2.map((b: B) => (a, b)))
 
   def many[A](p: Parser[A]): Parser[List[A]] = map2(p, many(p))(_ :: _) or succeed(List[A]())
 
@@ -55,9 +56,10 @@ trait Parsers[Parser[+ _]] {
   //def count[A](p:Parser[List[A]]):Parser[Int] // Too speciffic
   def count[A](p: Parser[Char]): Parser[Int] = many(p).map(_.size)
 
-  def numAs[A]:Parser[List[String]] = "^[0-9]*".r.slice.flatMap(s => listOfN(s.toInt, "a"))
 
-  def numAsBook[A]:Parser[List[String]] = for {
+  def numAs[A]: Parser[List[String]] = "^[0-9]*".r.slice.flatMap(s => listOfN(s.toInt, "a"))
+
+  def numAsBook[A]: Parser[List[String]] = for {
     digit <- "[0-9]+".r
     val n = digit.toInt // we really should catch exceptions thrown by toInt and convert to parse failure
     result <- listOfN(n, "a")
@@ -66,24 +68,31 @@ trait Parsers[Parser[+ _]] {
   /** Parser which consumes zero or more whitespace characters. */
   def whitespace: Parser[String] = "\\s*".r
 
-  /** Parser which consumes 1 or more digits. */
+  /** Parser which consumes 1 or more signed or not digits. */
   def digits: Parser[String] = "\\d+".r
 
   /** Parser which consumes 1 or more digits. */
   def letters: Parser[String] = "[a-zA-Z]+".r
 
-  def rstrip[A, B](p:Parser[A], stripped:Parser[B]):Parser[A] = (p ** stripped.many).map(_._1)
-  def lstrip[A, B](p:Parser[A], stripped:Parser[B]):Parser[A] = (stripped.many ** p ).map(_._2)
-  def strip[A, B](p:Parser[A], stripped:Parser[B]):Parser[A] = rstrip(lstrip(p, stripped), stripped)
+  def rstrip[A, B](p: Parser[A], stripped: Parser[B]): Parser[A] = (p ** stripped.many).map(_._1)
+
+  def lstrip[A, B](p: Parser[A], stripped: Parser[B]): Parser[A] = (stripped.many ** p).map(_._2)
+
+  def strip[A, B](p: Parser[A], stripped: Parser[B]): Parser[A] = rstrip(lstrip(p, stripped), stripped)
 
   def unbiasL[A, B, C](p: ((A, B), C)): (A, B, C) = (p._1._1, p._1._2, p._2)
+
   def unbiasR[A, B, C](p: (A, (B, C))): (A, B, C) = (p._1, p._2._1, p._2._2)
-  def middle[A,B,C](p:(A,B,C)):B = p._2
 
-  def tuple3[A,B,C](p:Parser[A], p2:Parser[B], p3:Parser[C]):Parser[(A,B,C)] = ((p ** p2) ** p3).map(unbiasL)
-  def between[A,B](p:Parser[A], p2:Parser[B]):Parser[(B,A,B)] = tuple3(p2,p,p2)
+  def middle[A, B, C](p: (A, B, C)): B = p._2
 
-  def opt[A](p:Parser[A]): Parser[Option[A]] = or(p.map(Some(_)), succeed(None))
+  def tuple3[A, B, C](p: Parser[A], p2: Parser[B], p3: Parser[C]): Parser[(A, B, C)] = ((p ** p2) ** p3).map(unbiasL)
+
+  def between[A, B](p: Parser[A], p2: Parser[B]): Parser[(B, A, B)] = tuple3(p2, p, p2)
+
+  def sequence[A](l:Seq[Parser[A]]):Parser[List[A]] = l.foldRight(succeed(List[A]()))((x, z)=>x.map2(z)(_::_))
+
+  def sequence[A](parsers: Parser[A]*):Parser[List[A]] = sequence(parsers.toSeq)
 
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
@@ -104,11 +113,13 @@ trait Parsers[Parser[+ _]] {
 
     def slice: Parser[String] = self.slice(p)
 
-    def lstrip[B](p2: Parser[B]):Parser[A] = self.lstrip(p, p2)
-    def rstrip[B](p2: Parser[B]):Parser[A] = self.rstrip(p, p2)
-    def strip[B](p2: Parser[B]):Parser[A] = self.strip(p, p2)
+    def lstrip[B](p2: Parser[B]): Parser[A] = self.lstrip(p, p2)
 
-    def between[B](p2: Parser[B]):Parser[(B,A,B)] = self.between(p, p2)
+    def rstrip[B](p2: Parser[B]): Parser[A] = self.rstrip(p, p2)
+
+    def strip[B](p2: Parser[B]): Parser[A] = self.strip(p, p2)
+
+    def between[B](p2: Parser[B]): Parser[(B, A, B)] = self.between(p, p2)
 
   }
 
