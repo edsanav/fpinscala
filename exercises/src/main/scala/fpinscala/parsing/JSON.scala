@@ -31,6 +31,8 @@ object JSON {
 
     def key: Parser[(Quoted, Char)] = quoted ** char(':').lstrip(whitespace)
 
+    def value: Parser[JSON] = (jnull | jnumber | jstring | jbool | jarray | jobject).between(whitespace).map(middle)
+
     def exponential: Parser[String] = sequence(string("e").or(string("E")), regex("[+-]?[0-9]+".r)).map(_.mkString)
 
     def jstring: Parser[JSON] = regex("[^\\\\\"]+".r).between(string("\"")).map(p => JString(middle(p)))
@@ -47,6 +49,15 @@ object JSON {
       string("true").map(_ => JBool(true)),
       string("false").map(_ => JBool(false))
     )
+
+    def jarray: Parser[JSON] = or(
+      tuple3(string("["),whitespace,string("]")).map(_ => Vector[JSON]()),
+      tuple3(
+        string("["),
+        (many((value ** string(",")).map(_._1)) ** value).map(x => x._1.toVector :+ x._2),
+        string("]")
+      ).map(middle)
+    ).map(JArray(_))
 
     def entry: Parser[(String, JSON)] = key.map(_._1._2) ** jsonParser(P).strip(whitespace).rstrip(char(','))
 
