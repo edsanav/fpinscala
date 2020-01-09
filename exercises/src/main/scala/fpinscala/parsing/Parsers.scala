@@ -32,6 +32,13 @@ trait Parsers[Parser[+ _]] {
 
   def attempt[A](p: Parser[A]): Parser[A]
 
+  /** In the event of an error, returns the error that occurred after consuming the most number of characters. */
+  def furthest[A](p: Parser[A]): Parser[A]
+
+  /** In the event of an error, returns the error that occurred most recently. */
+  def latest[A](p: Parser[A]): Parser[A]
+
+
   def map[A, B](p: Parser[A])(f: A => B): Parser[B] = p.flatMap(a => succeed(f(a)))
 
   def char(c: Char): Parser[Char] = string(c.toString).map(_.charAt(0))
@@ -58,7 +65,7 @@ trait Parsers[Parser[+ _]] {
   def many1[A](p: Parser[A]): Parser[List[A]] = map2(p, many(p))(_ :: _)
 
 
-  def succeed[A](a: A): Parser[A] = string("").map(_ => a) // succedded parser (checks with empty string and returns imput)
+  def succeed[A](a: A): Parser[A] // = string("").map(_ => a) // succedded parser (checks with empty string and returns imput)
 
 
   //def count[A](p:Parser[List[A]]):Parser[Int] // Too speciffic
