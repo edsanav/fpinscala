@@ -26,56 +26,56 @@ object JSON {
     def keyval = escapedQuoted ** (":" *> value)
     def lit = scope("literal") {
       "null".as(JNull) |
-      double.map(JNumber(_)) |
-      escapedQuoted.map(JString(_)) |
-      "true".as(JBool(true)) |
-      "false".as(JBool(false))
+        double.map(JNumber(_)) |
+        escapedQuoted.map(JString(_)) |
+        "true".as(JBool(true)) |
+        "false".as(JBool(false))
     }
     def value: Parser[JSON] = lit | obj | array
     root(whitespace *> (obj | array))
   }
 }
-//
-///**
-// * JSON parsing example.
-// */
-//object JSONExample extends App {
-//  val jsonTxt = """
-//{
-//  "Company name" : "Microsoft Corporation",
-//  "Ticker"  : "MSFT",
-//  "Active"  : true,
-//  "Price"   : 30.66,
-//  "Shares outstanding" : 8.38e9,
-//  "Related companies" : [ "HPQ", "IBM", "YHOO", "DELL", "GOOG" ]
-//}
-//"""
-//
-//  val malformedJson1 = """
-//{
-//  "Company name" ; "Microsoft Corporation"
-//}
-//"""
-//
-//  val malformedJson2 = """
-//[
-//  [ "HPQ", "IBM",
-//  "YHOO", "DELL" ++
-//  "GOOG"
-//  ]
-//]
-//"""
-//
-//  val P = fpinscala.parsing.Reference
-//  import fpinscala.parsing.ReferenceTypes.Parser
-//
-//  def printResult[E](e: Either[E,JSON]) =
-//    e.fold(println, println)
-//
-//  val json: Parser[JSON] = JSON.jsonParser(P)
-//  printResult { P.run(json)(jsonTxt) }
-//  println("--")
-//  printResult { P.run(json)(malformedJson1) }
-//  println("--")
-//  printResult { P.run(json)(malformedJson2) }
-//}
+
+/**
+  * JSON parsing example.
+  */
+object JSONExample extends App {
+  val jsonTxt = """
+{
+  "Company name" : "Microsoft Corporation",
+  "Ticker"  : "MSFT",
+  "Active"  : true,
+  "Price"   : 30.66,
+  "Shares outstanding" : 8.38e9,
+  "Related companies" : [ "HPQ", "IBM", "YHOO", "DELL", "GOOG" ]
+}
+"""
+
+  val malformedJson1 = """
+{
+  "Company name" ; "Microsoft Corporation"
+}
+"""
+
+  val malformedJson2 = """
+[
+  [ "HPQ", "IBM",
+  "YHOO", "DELL" ++
+  "GOOG"
+  ]
+]
+"""
+
+  val P = fpinscala.parsing.Reference
+  import fpinscala.parsing.ReferenceTypes.Parser
+
+  def printResult[E](e: Either[E,JSON]) =
+    e.fold(println, println)
+
+  val json: Parser[JSON] = JSON.jsonParser(P)
+  printResult { P.run(json)(jsonTxt) }
+  println("--")
+  printResult { P.run(json)(malformedJson1) }
+  println("--")
+  printResult { P.run(json)(malformedJson2) }
+}

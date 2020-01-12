@@ -10,3 +10,4 @@ project.vim
 .project
 .classpath
 .metadata/
+/exercises/src/main/scala/fpinscala/scratch.sc
