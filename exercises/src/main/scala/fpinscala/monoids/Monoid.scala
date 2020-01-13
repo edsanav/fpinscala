@@ -11,38 +11,68 @@ trait Monoid[A] {
 
 object Monoid {
 
-  val stringMonoid = new Monoid[String] {
-    def op(a1: String, a2: String) = a1 + a2
-    val zero = ""
+  val stringMonoid:Monoid[String] = new Monoid[String] {
+    def op(a1: String, a2: String):String = a1 + a2
+    val zero:String = ""
   }
 
-  def listMonoid[A] = new Monoid[List[A]] {
-    def op(a1: List[A], a2: List[A]) = a1 ++ a2
-    val zero = Nil
+  def listMonoid[A]:Monoid[List[A]] = new Monoid[List[A]] {
+    def op(a1: List[A], a2: List[A]):List[A] = a1 ++ a2
+    val zero:List[A] = Nil
   }
 
-  val intAddition: Monoid[Int] = ???
+  val intAddition: Monoid[Int] = new Monoid[Int] {
+    def op(a1: Int, a2: Int): Int = a1 + a2
+    def zero:Int = 0
+  }
 
-  val intMultiplication: Monoid[Int] = ???
+  val intMultiplication: Monoid[Int] = new Monoid[Int] {
+    def op(a1: Int, a2: Int): Int = a1 * a2
+    def zero:Int = 1
+  }
 
-  val booleanOr: Monoid[Boolean] = ???
+  val booleanOr: Monoid[Boolean] = new Monoid[Boolean] {
+    def op(a1: Boolean, a2: Boolean): Boolean = a1 || a2
+    def zero:Boolean = false
+  }
 
-  val booleanAnd: Monoid[Boolean] = ???
+  val booleanAnd: Monoid[Boolean] = new Monoid[Boolean] {
+    def op(a1: Boolean, a2: Boolean): Boolean = a1 && a2
+    def zero:Boolean = true
+  }
 
-  def optionMonoid[A]: Monoid[Option[A]] = ???
+  def optionMonoid[A]: Monoid[Option[A]] = new Monoid[Option[A]] {
+    def op(a1: Option[A], a2: Option[A]): Option[A] =a1 orElse a2
 
-  def endoMonoid[A]: Monoid[A => A] = ???
+    def zero: Option[A] = None
+  }
 
-  // TODO: Placeholder for `Prop`. Remove once you have implemented the `Prop`
-  // data type from Part 2.
-  trait Prop {}
+  // We can get the dual of any monoid just by flipping the `op`.
+  def dual[A](m: Monoid[A]): Monoid[A] = new Monoid[A] {
+    def op(x: A, y: A): A = m.op(y, x)
+    val zero:A = m.zero
+  }
 
-  // TODO: Placeholder for `Gen`. Remove once you have implemented the `Gen`
-  // data type from Part 2.
+  // Now we can have both monoids on hand:
+  def firstOptionMonoid[A]: Monoid[Option[A]] = optionMonoid[A]
+  def lastOptionMonoid[A]: Monoid[Option[A]] = dual(firstOptionMonoid)
+
+  def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
+    def op(f: (A => A), g: (A => A)): A => A = f compose g // this is the same as (a:A) => f(g(a))
+    val zero:A => A = (a:A) => a
+  }
 
   import fpinscala.testing._
   import Prop._
-  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = ???
+  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = {
+    forAll(
+        for {
+        x <-gen
+        y <-gen
+        z <-gen
+      }  yield (x,y,z)){case (x,y,z) => m.op(m.op(x,y),z) == m.op(x, m.op(y,z))} &&
+    forAll(gen)( a=> m.op(a, m.zero) == a  &&  m.op(m.zero, a) == a)
+  }
 
   def trimMonoid(s: String): Monoid[String] = ???
 
@@ -68,10 +98,10 @@ object Monoid {
   case class Stub(chars: String) extends WC
   case class Part(lStub: String, words: Int, rStub: String) extends WC
 
-  def par[A](m: Monoid[A]): Monoid[Par[A]] = 
+  def par[A](m: Monoid[A]): Monoid[Par[A]] =
     ???
 
-  def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = 
+  def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] =
     ???
 
   val wcMonoid: Monoid[WC] = ???
