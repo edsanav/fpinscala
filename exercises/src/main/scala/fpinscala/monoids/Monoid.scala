@@ -83,17 +83,12 @@ object Monoid {
     as.foldLeft(m.zero){case (b,a) => m.op(b,f(a))}
 
   def foldRight[A, B](as: List[A])(z: B)(f: (A, B) => B): B = {
-    def g(a:A)(b:B) = f(a, b)
-    val myMonoid:Monoid[B] = new Monoid[B] {
-      def op(a1: B, a2: B): B = h(a1,a2)
-      def zero:B = z
-    }
-    val myList:List = as.map( a=>g(a)) // convert to list of (a, b) => b ??
-    foldMap(as, myMonoid)(g)
+    //foldMap(as, endoMonoid[B])((a:A) => f(_, a))(z)
+    foldMap(as, endoMonoid[B])(f.curried)(z)
   }
 
   def foldLeft[A, B](as: List[A])(z: B)(f: (B, A) => B): B =
-    ???
+    foldMap(as, dual(endoMonoid[B]))(f.curried)(z)
 
   def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B =
     ???
