@@ -88,7 +88,7 @@ object Monoid {
   }
 
   def foldLeft[A, B](as: List[A])(z: B)(f: (B, A) => B): B =
-    foldMap(as, dual(endoMonoid[B]))(f.curried)(z)
+    foldMap(as, dual(endoMonoid[B]))((a:A) =>(b:B) => f(b,a))(z)
 
   def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B =
     ???
