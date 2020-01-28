@@ -1,6 +1,6 @@
 package fpinscala.iomonad
 
-import fpinscala.parallelism.Nonblocking._
+import fpinscala.parallelism.Nonblocking_bk._
 import java.util.concurrent.ExecutorService
 
 /*

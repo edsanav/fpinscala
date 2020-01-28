@@ -90,8 +90,16 @@ object Monoid {
   def foldLeft[A, B](as: List[A])(z: B)(f: (B, A) => B): B =
     foldMap(as, dual(endoMonoid[B]))((a:A) =>(b:B) => f(b,a))(z)
 
-  def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B =
-    ???
+  def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B = {
+    if (as.length >=2) {
+      val (as1,as2) = as.splitAt(as.length/2)
+      m.op(foldMapV(as1, m)(f), foldMapV(as2, m)(f))
+    }else if(as.length ==1){
+      f(as(0))
+    }else{
+      m.zero
+    }
+  }
 
   def ordered(ints: IndexedSeq[Int]): Boolean =
     ???
@@ -101,10 +109,31 @@ object Monoid {
   case class Part(lStub: String, words: Int, rStub: String) extends WC
 
   def par[A](m: Monoid[A]): Monoid[Par[A]] =
-    ???
+    new Monoid[Par[A]] {
+      def op(a1: Par[A], a2: Par[A]): Par[A] = a1.zip(a2).map{case(a1,a2)=>m.op(a1,a2)}
+      def zero: Par[A] = Par.unit(m.zero)
+    }
 
+  // My naive solution...
+  //  def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = {
+  //    val parM = par(m)
+  //    Par.fork(
+  //      if (v.length >=2) {
+  //        val (v1,v2) = v.splitAt(v.length/2)
+  //        parM.op(parFoldMap(v1, m)(f), parFoldMap(v2, m)(f))
+  //      }else if(v.length ==1){
+  //        Par.unit(f(v(0)))
+  //      }else{
+  //        parM.zero
+  //      }
+  //    )
+  //  }
+
+  // book solution
   def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] =
-    ???
+    Par.parMap(v)(f).flatMap { bs => // first it converts As to Bs
+      foldMapV(bs, par(m))(b => Par.async(b)) // then it folds them in parallel
+    }
 
   val wcMonoid: Monoid[WC] = ???
 

@@ -306,7 +306,7 @@ object IO2bTests {
 
 object IO2c {
 
-  import fpinscala.parallelism.Nonblocking._
+  import fpinscala.parallelism.Nonblocking_bk._
 
   /*
    * We've solved our first problem of ensuring stack safety, but we're still
@@ -391,7 +391,7 @@ object IO3 {
   only console I/O effects.
   */
 
-  import fpinscala.parallelism.Nonblocking.Par
+  import fpinscala.parallelism.Nonblocking_bk.Par
 
   sealed trait Console[A] {
     def toPar: Par[A]
