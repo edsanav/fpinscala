@@ -101,8 +101,21 @@ object Monoid {
     }
   }
 
-  def ordered(ints: IndexedSeq[Int]): Boolean =
-    ???
+  // Copied from solutions. Annotations: Monoids of Some/None -> easy to set 0 and merge them
+  def ordered(ints: IndexedSeq[Int]): Boolean = {
+    val mon: Monoid[Option[(Int, Int, Boolean)]] = new Monoid[Option[(Int, Int, Boolean)]] {
+      def op(a1: Option[(Int, Int, Boolean)], a2: Option[(Int, Int, Boolean)]): Option[(Int, Int, Boolean)] =
+        (a1,a2) match {
+          case (x, None) => x
+          case (None, x) => x
+          case (Some((x1,y1, p)), Some((x2,y2,q))) => Some( (x1 min x2, y1 max y2, p && q && x1 <=y2))
+        }
+
+      def zero: Option[(Int, Int, Boolean)] = None
+      }
+
+    foldMapV(ints, mon)( i => Some(i, i, true)).map(_._3).getOrElse(true)
+  }
 
   sealed trait WC
   case class Stub(chars: String) extends WC
