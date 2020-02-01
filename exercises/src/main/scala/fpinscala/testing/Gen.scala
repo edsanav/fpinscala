@@ -172,6 +172,7 @@ case class Gen[+A](sample: State[RNG,A]) {
   def flatMap[B](f: A => Gen[B]): Gen[B] = Gen(sample.flatMap((a:A) =>f(a).sample))
 
   def listOfN(size: Int): Gen[List[A]] = Gen.listOfN(size, this)
+  def listOf: SGen[List[A]] = Gen.listOf(this)
 
   def listOfN(size:Gen[Int]): Gen[List[A]] = size.flatMap((n:Int)=>this.listOfN(n))
 
@@ -209,7 +210,9 @@ object Gen {
 
     def stringN(n:Int):Gen[String] = listOfN(n, chooseCharacter).map((xs:List[Char])=>xs.mkString)
 
-    def sequence[A](ls:List[Gen[A]]):Gen[List[A]] = {
+  val string: SGen[String] = SGen(stringN)
+
+  def sequence[A](ls:List[Gen[A]]):Gen[List[A]] = {
       ls.foldRight(Gen.unit(List.empty[A]))((g:Gen[A], accum) => g.map2(accum)(_::_))
     }
 
@@ -262,7 +265,7 @@ case class SGen[+A](g: Int => Gen[A]){
 
 object examples {
 
-  val smallInt = Gen.choose(-10,10)
+  val smallInt:Gen[Int] = Gen.choose(-10,10)
   val maxProp = forAll(listOf1(smallInt)) { ns =>
     val max = ns.max
     !ns.exists(_ > max)

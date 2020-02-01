@@ -108,7 +108,7 @@ object Monoid {
         (a1,a2) match {
           case (x, None) => x
           case (None, x) => x
-          case (Some((x1,y1, p)), Some((x2,y2,q))) => Some( (x1 min x2, y1 max y2, p && q && x1 <=y2))
+          case (Some((x1,y1, p)), Some((x2,y2,q))) => Some( (x1 min x2, y1 max y2, p && q && y1 <=x2))
         }
 
       def zero: Option[(Int, Int, Boolean)] = None
@@ -121,11 +121,10 @@ object Monoid {
   case class Stub(chars: String) extends WC
   case class Part(lStub: String, words: Int, rStub: String) extends WC
 
-  def par[A](m: Monoid[A]): Monoid[Par[A]] =
-    new Monoid[Par[A]] {
-      def op(a1: Par[A], a2: Par[A]): Par[A] = a1.zip(a2).map{case(a1,a2)=>m.op(a1,a2)}
-      def zero: Par[A] = Par.unit(m.zero)
-    }
+  def par[A](m: Monoid[A]): Monoid[Par[A]] = new Monoid[Par[A]] {
+    def zero = Par.unit(m.zero)
+    def op(a: Par[A], b: Par[A]) = a.map2(b)(m.op)
+  }
 
   // My naive solution...
   //  def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = {
@@ -145,10 +144,21 @@ object Monoid {
   // book solution
   def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] =
     Par.parMap(v)(f).flatMap { bs => // first it converts As to Bs
-      foldMapV(bs, par(m))(b => Par.async(b)) // then it folds them in parallel
+      foldMapV(bs, par(m))(b => Par.lazyUnit(b)) // then it folds them in parallel
     }
 
-  val wcMonoid: Monoid[WC] = ???
+  val wcMonoid: Monoid[WC] = new Monoid[WC] {
+    def op(a1: WC, a2: WC): WC = (a1,a2) match {
+      case (Stub(c1), Stub(c2)) => Stub(c1+c2)
+      case (Stub(c), Part(l, w, r)) => Part(c+l,w, r)
+      case (Part(l, w, r), Stub(c)) => Part(l, w, r+c)
+      case (Part(l1, w1, r1),Part(l2, w2, r2)) => Part(
+        l1, w1+( if ((r1+l2).isEmpty) 0 else 1)+w2, r2
+      )
+    }
+
+    def zero: WC = Stub("")
+  }
 
   def count(s: String): Int = ???
 
@@ -231,3 +241,29 @@ object OptionFoldable extends Foldable[Option] {
     ???
 }
 
+/*
+import fpinscala.state._; import fpinscala.testing._; import fpinscala.testing.Gen._; import fpinscala.testing.Prop._
+
+val myInts = Gen.choose(-10,10)
+run(Monoid.monoidLaws(Monoid.intMultiplication, myInts))
+
+val myWords =
+
+ */
+object examples {
+  import fpinscala.state._; import fpinscala.testing._; import fpinscala.testing.Gen._; import fpinscala.testing.Prop._
+
+  val myInts = Gen.choose(-10,10)
+
+  val verifyInts = Monoid.monoidLaws(Monoid.intMultiplication, myInts)
+
+  val myWords = SGen(n => Gen.stringN(n).listOfN(n).map(_.mkString(" ")))
+
+  val sentences:Gen[String] = for {
+    l <- Gen.choose(-10, 10)
+    n <- Gen.choose(-50,50)
+    sentence <- Gen.stringN(l).listOfN(n).map(_.mkString(" "))
+  } yield sentence
+
+
+}
