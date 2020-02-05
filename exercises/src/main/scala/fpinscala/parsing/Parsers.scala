@@ -186,7 +186,9 @@ trait Parsers[Parser[+ _]] {
 
     def many: Parser[List[A]] = self.many(p)
 
-    def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
+
+    def flatMap[B](f: A => Parser[B]): Parser[B] =
+      self.flatMap(p)(f)
 
     def map[B](f: A => B): Parser[B] = self.map(p)(f)
 
