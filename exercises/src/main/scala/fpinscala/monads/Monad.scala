@@ -36,11 +36,17 @@ trait Monad[M[_]] extends Functor[M] {
   def map2[A,B,C](ma: M[A], mb: M[B])(f: (A, B) => C): M[C] =
     flatMap(ma)(a => map(mb)(b => f(a, b)))
 
-  def sequence[A](lma: List[M[A]]): M[List[A]] = ???
+  def sequence[A](lma: List[M[A]]): M[List[A]] =
+    lma.foldRight(unit(List[A]())){case (a:M[A], acc:M[List[A]]) => map2(a,acc)(_::_)}
 
-  def traverse[A,B](la: List[A])(f: A => M[B]): M[List[B]] = ???
+  def traverse[A,B](la: List[A])(f: A => M[B]): M[List[B]] =
+    la.foldRight(unit(List[B]())){case (a:M[A], acc:M[List[B]]) => map2(f(a),acc)(_::_)}
 
-  def replicateM[A](n: Int, ma: M[A]): M[List[A]] = ???
+  def replicateM[A](n: Int, ma: M[A]): M[List[A]] = sequence(List.fill(n)(ma))
+
+  // Recursive version:
+//  def _replicateM[A](n: Int, ma: F[A]): F[List[A]] =
+//    if (n <= 0) unit(List[A]()) else map2(ma, replicateM(n - 1, ma))(_ :: _)
 
   def compose[A,B,C](f: A => M[B], g: B => M[C]): A => M[C] = ???
 
@@ -69,7 +75,7 @@ object Monad {
   }
 
   def parserMonad[P[+_]](p: Parsers[P]): Monad[P] = new Monad[P] {
-    def unit[A](a: => A): P[A] = p.succeed(a)
+    def unit[A](a: => A): P[A] = p.succeed(a)W
     override def flatMap[A,B](ma: P[A])(f: A => P[B]): P[B] =
       p.flatMap(ma)(f)
   }
