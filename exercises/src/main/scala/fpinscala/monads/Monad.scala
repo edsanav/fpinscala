@@ -44,16 +44,40 @@ trait Monad[M[_]] extends Functor[M] {
 
   def replicateM[A](n: Int, ma: M[A]): M[List[A]] = sequence(List.fill(n)(ma))
 
+  def product[A,B](ma: M[A], mb:M[B]):M[(A,B)] = map2(ma, mb)((_,_))
+
+  def filterMOtherNotEfficient[A](ms:List[A])(f:A => M[Boolean]): M[List[A]] = {
+    map(traverse(ms)( (a:A) => product(unit(a),f(a))))( ls => ls.filter(_._2).map(_._1))
+  }
+
+    /*
+  For `Par`, `filterM` filters a list, applying the functions in
+  parallel; for `Option`, it filters a list, but allows
+  the filtering function to fail and abort the filter
+  computation; for `Gen`, it produces a generator for
+  subsets of the input list, where the function `f` picks a
+  'weight' for each element (in the form of a
+  `Gen[Boolean]`)
+  */
+    def filterM[A](ms: List[A])(f: A => M[Boolean]): M[List[A]] =
+      ms match {
+        case Nil => unit(Nil)
+        case h :: t => flatMap(f(h))(b =>
+          if (!b) filterM(t)(f) // if not condition, continue with the tail
+          else map(filterM(t)(f))(h :: _)) // if condition, map head concatenated to whatever on tail
+      }
+
+
   // Recursive version:
 //  def _replicateM[A](n: Int, ma: F[A]): F[List[A]] =
 //    if (n <= 0) unit(List[A]()) else map2(ma, replicateM(n - 1, ma))(_ :: _)
 
-  def compose[A,B,C](f: A => M[B], g: B => M[C]): A => M[C] = ???
+  def compose[A,B,C](f: A => M[B], g: B => M[C]): A => M[C] = (a:A) => flatMap(f(a))(g)
 
   // Implement in terms of `compose`:
-  def _flatMap[A,B](ma: M[A])(f: A => M[B]): M[B] = ???
+  def _flatMap[A,B](ma: M[A])(f: A => M[B]): M[B] = compose((_:Unit) => ma, f)()
 
-  def join[A](mma: M[M[A]]): M[A] = ???
+  def join[A](mma: M[M[A]]): M[A] = flatMap(mma)(ma => ma)
 
   // Implement in terms of `join`:
   def __flatMap[A,B](ma: M[A])(f: A => M[B]): M[B] = ???
