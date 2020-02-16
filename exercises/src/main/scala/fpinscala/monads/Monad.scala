@@ -80,10 +80,20 @@ trait Monad[M[_]] extends Functor[M] {
   def join[A](mma: M[M[A]]): M[A] = flatMap(mma)(ma => ma)
 
   // Implement in terms of `join`:
-  def __flatMap[A,B](ma: M[A])(f: A => M[B]): M[B] = ???
+  def __flatMap[A,B](ma: M[A])(f: A => M[B]): M[B] = join(map(ma)(f))
+
+  def _compose[A,B,C](f: A => M[B], g: B => M[C]):A => M[C] = (a:A) => join(map(f(a))(g))
 }
 
-case class Reader[R, A](run: R => A)
+case class Reader[R, A](run: R => A) {
+  def map[B](f: A => B): Reader[R,B] = Reader((r:R) => f(run(r)) )
+  def flatMap[B](f: A => Reader[R,B]): Reader[R,B] = Reader(
+    (r:R) => {
+       val a = run(r)
+      f(a).run(r)
+    }
+  )
+}
 
 object Monad {
   val genMonad = new Monad[Gen] {
@@ -99,7 +109,7 @@ object Monad {
   }
 
   def parserMonad[P[+_]](p: Parsers[P]): Monad[P] = new Monad[P] {
-    def unit[A](a: => A): P[A] = p.succeed(a)W
+    def unit[A](a: => A): P[A] = p.succeed(a)
     override def flatMap[A,B](ma: P[A])(f: A => P[B]): P[B] =
       p.flatMap(ma)(f)
   }
@@ -144,20 +154,30 @@ object Monad {
       st flatMap f
   }
 
-  val idMonad: Monad[Id] = ???
+  val idMonad: Monad[Id] = new Monad[Id]{
+    def unit[A](a: =>A): Id[A] = Id(a)
+    def flatMap[A,B](ma:Id[A])(f:A => Id[B]): Id[B] = ma flatMap f
+  }
 
-  def readerMonad[R] = ???
+  def readerMonad[R] = Reader.readerMonad
 }
 
 case class Id[A](value: A) {
-  def map[B](f: A => B): Id[B] = ???
-  def flatMap[B](f: A => Id[B]): Id[B] = ???
+  def map[B](f: A => B): Id[B] = Id(f(value))
+  def flatMap[B](f: A => Id[B]): Id[B] = f(value)
 }
 
 object Reader {
   def readerMonad[R] = new Monad[({type f[x] = Reader[R,x]})#f] {
-    def unit[A](a: => A): Reader[R,A] = ???
-    override def flatMap[A,B](st: Reader[R,A])(f: A => Reader[R,B]): Reader[R,B] = ???
+    def unit[A](a: => A): Reader[R,A] = Reader(_ => a)
+    override def flatMap[A,B](st: Reader[R,A])(f: A => Reader[R,B]): Reader[R,B] = st flatMap f
+
+    // Alternative if Reader case class does not have flatMap.... it's exactly the same
+    def flatMapDirect[A,B](st: Reader[R,A])(f: A => Reader[R,B]): Reader[R,B] =
+      Reader(r => f(st.run(r)).run(r))
+
+    // A primitive operation for it would be simply to ask for the `R` argument: Equivalent to getState
+    def ask[R]: Reader[R, R] = Reader(r => r)
   }
 }
 
