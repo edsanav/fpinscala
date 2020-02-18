@@ -11,14 +11,25 @@ import language.implicitConversions
 
 trait Applicative[F[_]] extends Functor[F] {
 
-  def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] = apply(map(fa)(f.curried))(fb) //apply(apply(unit(f.curried))(fa))(fb)
+  // map(fa)(a => f.curried(a):F[B => C] que en el global sirve para F[B => C](F[B])
+  def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] = apply(map(fa)(f.curried))(fb)//apply(apply(unit(f.curried))(fa))(fb)
+
+  def map3[A,B,C,D](fa: F[A],
+                    fb: F[B],
+                    fc: F[C])(f: (A, B, C) => D): F[D] = apply(map2(fa,fb){case(a,b) => f.curried(a)(b)})(fc)
+  // Alternatively, map3 = apply(apply(apply(unit(f.curried))(fa))(fb))(fc)
+
+  def map4[A,B,C,D,E](fa: F[A],
+                      fb: F[B],
+                      fc: F[C],
+                      fd: F[D])(f: (A, B, C, D) => E): F[E] = apply(map3(fa,fb,fc){case(a,b,c) => f.curried(a)(b)(c)})(fd)
+  // Alternatively, map4
 
   def apply[A,B](fab: F[A => B])(fa: F[A]): F[B] = map2(fab, fa)((f:(A => B), a:A) => f(a))
 
   def unit[A](a: => A): F[A]
 
-  def map[A,B](fa: F[A])(f: A => B): F[B] =
-    apply(unit(f))(fa)
+  def map[A,B](fa: F[A])(f: A => B): F[B] = apply(unit(f))(fa)
 
   def sequence[A](fas: List[F[A]]): F[List[A]] = traverse(fas)(fa => fa)
 
@@ -39,6 +50,7 @@ trait Applicative[F[_]] extends Functor[F] {
 case class Tree[+A](head: A, tail: List[Tree[A]])
 
 trait Monad[F[_]] extends Applicative[F] {
+  // Minimal implementation of monad will need to implement unit and either flatMap or join and map
   def flatMap[A,B](ma: F[A])(f: A => F[B]): F[B] = join(map(ma)(f))
 
   def join[A](mma: F[F[A]]): F[A] = flatMap(mma)(ma => ma)
