@@ -309,6 +309,4 @@ object examples {
     sentence <- Gen.stringN(l).listOfN(n).map(_.mkString(" "))
   } yield sentence
 
-  val verifyWords = Monoid.monoidLaws(Monoid.wcMonoid, sentences)
-
 }

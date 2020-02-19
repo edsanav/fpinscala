@@ -40,7 +40,7 @@ trait Monad[M[_]] extends Functor[M] {
     lma.foldRight(unit(List[A]())){case (a:M[A], acc:M[List[A]]) => map2(a,acc)(_::_)}
 
   def traverse[A,B](la: List[A])(f: A => M[B]): M[List[B]] =
-    la.foldRight(unit(List[B]())){case (a:M[A], acc:M[List[B]]) => map2(f(a),acc)(_::_)}
+    la.foldRight(unit(List[B]())){case (a:A, acc:M[List[B]]) => map2(f(a),acc)(_::_)}
 
   def replicateM[A](n: Int, ma: M[A]): M[List[A]] = sequence(List.fill(n)(ma))
 

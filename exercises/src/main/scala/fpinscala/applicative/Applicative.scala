@@ -4,8 +4,9 @@ package applicative
 import monads.Functor
 import state._
 import State._
-import StateUtil._ // defined at bottom of this file
+import StateUtil._
 import monoids._
+
 import language.higherKinds
 import language.implicitConversions
 
@@ -63,7 +64,16 @@ trait Monad[F[_]] extends Applicative[F] {
 }
 
 object Monad {
-  def eitherMonad[E]: Monad[({type f[x] = Either[E, x]})#f] = ???
+  def eitherMonad[E]: Monad[({type f[x] = Either[E, x]})#f]  = new Monad[({type f[x] = Either[E, x]})#f] {
+    def unit[A](a: => A):Either[E,A] = Right(a)
+
+    //    override def flatMap[A,B](e:Either[E,A])(f: A => Either[E,B]) = e flatMap f easy one
+    override def flatMap[A,B](e:Either[E,A])(f: A => Either[E,B]) = e match {
+     case Right(a:A)  => f(a)
+     case Left(e) => Left(e)
+    }
+
+  }
 
   def stateMonad[S] = new Monad[({type f[x] = State[S, x]})#f] {
     def unit[A](a: => A): State[S, A] = State(s => (a, s))
