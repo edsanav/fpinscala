@@ -41,7 +41,20 @@ trait Applicative[F[_]] extends Functor[F] {
 
   def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] = map2(fa,fb)((a,b) => (a,b))
 
-  def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = ???
+  def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = {
+    val self = this
+    new Applicative[({type f[x] = (F[x], G[x])})#f] {
+      override def unit[A](a: => A): (F[A], G[A]) = (self.unit(a), G.unit(a))
+      def applyMine[A, B](fab: (F[A => B], G[A => B]))(fa: (F[A], G[A])): (F[B], G[B]) = fa match {
+         case (xa:F[A], ya:G[A]) => (
+           self.map2(xa, fab._1)((a,f) => f(a)),
+           G.map2(ya, fab._2)((a,g) => g(a)),
+         )
+      }
+      override def apply[A,B](fs: (F[A => B], G[A => B]))(p: (F[A], G[A])) =
+        (self.apply(fs._1)(p._1), G.apply(fs._2)(p._2))
+    }
+  }
 
   def compose[G[_]](G: Applicative[G]): Applicative[({type f[x] = F[G[x]]})#f] = ???
 
@@ -111,11 +124,11 @@ object Applicative {
 
       override def map2[A, B, C](fa: Validation[E, A], fb: Validation[E, B])(f: (A, B) => C): Validation[E, C] =
         (fa, fb) match {
-          case (Success(a), Success(b)) => Success(f(a,b))
-          case (failA:Failure[E], failB:Failure[E]) => Failure(failA.head, failA.tail++Vector(failB.head)++failB.tail)
-          case (_, e@Failure(_,_)) => e
-          case (e@Failure(_,_), _) => e
-
+          case (Success(a), Success(b)) => Success(f(a, b))
+          case (failA: Failure[E], failB: Failure[E]) => Failure(failA.head, failA.tail ++ Vector(failB.head) ++ failB.tail)
+          case (_, e@Failure(_, _)) => e
+          case (e@Failure(_, _), _) => e
+        }
   }
 
   type Const[A, B] = A
