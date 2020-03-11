@@ -45,12 +45,6 @@ trait Applicative[F[_]] extends Functor[F] {
     val self = this
     new Applicative[({type f[x] = (F[x], G[x])})#f] {
       override def unit[A](a: => A): (F[A], G[A]) = (self.unit(a), G.unit(a))
-      def applyMine[A, B](fab: (F[A => B], G[A => B]))(fa: (F[A], G[A])): (F[B], G[B]) = fa match {
-         case (xa:F[A], ya:G[A]) => (
-           self.map2(xa, fab._1)((a,f) => f(a)),
-           G.map2(ya, fab._2)((a,g) => g(a)),
-         )
-      }
       override def apply[A,B](fs: (F[A => B], G[A => B]))(p: (F[A], G[A])):(F[B],G[B]) =
         (self.apply(fs._1)(p._1), G.apply(fs._2)(p._2))
     }
@@ -106,8 +100,12 @@ object Monad {
       st flatMap f
   }
 
-  def composeM[F[_],N[_]](implicit F: Monad[F], N: Monad[N], T: Traverse[N]):
-    Monad[({type f[x] = F[N[x]]})#f] = ???
+  def composeM[G[_],H[_]](implicit G: Monad[G], H: Monad[H], T: Traverse[H]):
+  Monad[({type f[x] = G[H[x]]})#f] = new Monad[({type f[x] = G[H[x]]})#f] {
+    def unit[A](a: => A): G[H[A]] = G.unit(H.unit(a))
+    override def flatMap[A,B](mna: G[H[A]])(f: A => G[H[B]]): G[H[B]] =
+      G.flatMap(mna)(na => G.map(T.traverse(na)(f))(H.join))
+  }
 }
 
 sealed trait Validation[+E, +A]
@@ -152,13 +150,21 @@ object Applicative {
     }
 }
 
-trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
+trait Traverse[F[_]] extends Functor[F] with Foldable[F] { self =>
   def traverse[G[_]:Applicative,A,B](fa: F[A])(f: A => G[B]): G[F[B]] =
     sequence(map(fa)(f))
   def sequence[G[_]:Applicative,A](fma: F[G[A]]): G[F[A]] =
     traverse(fma)(ma => ma)
 
-  def map[A,B](fa: F[A])(f: A => B): F[B] = ???
+  type Id[A] = A
+
+  val idMonad = new Monad[Id] {
+    def unit[A](a: => A) = a
+    override def flatMap[A,B](a: A)(f: A => B): B = f(a)
+  }
+
+  def map[A,B](fa: F[A])(f: A => B): F[B] =
+    traverse[Id, A, B](fa)(f)(idMonad)
 
   import Applicative._
 
@@ -203,27 +209,39 @@ trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
 
   def fuse[G[_],H[_],A,B](fa: F[A])(f: A => G[B], g: A => H[B])
                          (implicit G: Applicative[G], H: Applicative[H]): (G[F[B]], H[F[B]]) =
-    traverse[({type f[x] = (G[x], H[x])})#f, A, B](fa)((a:A) => (f(a),g(a)))(G product(H)) //TODO review this
+    traverse[({type f[x] = (G[x], H[x])})#f, A, B](fa)((a:A) => (f(a),g(a)))(G product(H))
   //    (traverse(fa)(f), traverse(fa)(g))
 
-  def compose[G[_]](implicit G: Traverse[G]): Traverse[({type f[x] = F[G[x]]})#f] = ???
+  def compose[G[_]](implicit G: Traverse[G]): Traverse[({type f[x] = F[G[x]]})#f] =
+    new Traverse[({type f[x] = F[G[x]]})#f] {
+    override def traverse[K[_] : Applicative, A, B](fa: F[G[A]])(f: A => K[B]): K[F[G[B]]] = {
+      self.traverse(fa)((ga: G[A]) => G.traverse(ga)(f))
+    }
+  }
+
+  def composeBook[G[_]](implicit G: Traverse[G]): Traverse[({type f[x] = F[G[x]]})#f] =
+    new Traverse[({type f[x] = F[G[x]]})#f] {
+      override def traverse[M[_]:Applicative,A,B](fa: F[G[A]])(f: A => M[B]) =
+        self.traverse(fa)((ga: G[A]) => G.traverse(ga)(f))
+    }
+
 }
 
 object Traverse {
   val listTraverse = new Traverse[List] {
-    def traverse[G[_] : Applicative, A, B](fa: List[A])(f: A => G[B])(implicit G: Applicative[G]): G[List[B]] =
+    override def traverse[G[_], A, B](fa: List[A])(f: A => G[B])(implicit G: Applicative[G]): G[List[B]] =
       fa.foldRight(G.unit(List[B]()))((a, acc) => G.map2(f(a),acc)(_::_))
   }
 
   val optionTraverse =  new Traverse[Option] {
-    def traverse[G[_] : Applicative, A, B](fa: Option[A])(f: A => G[B])(implicit G: Applicative[G]): G[Option[B]] =
+    override def traverse[G[_], A, B](fa: Option[A])(f: A => G[B])(implicit G: Applicative[G]): G[Option[B]] =
       fa match {
-        case Some(a) => G.unit(f(a))
+        case Some(a) => G.map(f(a))(Some(_))
         case None => G.unit(None)
       }
   }
   val treeTraverse = new Traverse[Tree] {
-    def traverse[G[_] : Applicative, A, B](ta: Tree[A])(f: A => G[B])(implicit G: Applicative[G]): G[Tree[B]] =
+    override def traverse[G[_], A, B](ta: Tree[A])(f: A => G[B])(implicit G: Applicative[G]): G[Tree[B]] =
       G.map2(
         f(ta.head),
         listTraverse.traverse(ta.tail)(t => this.traverse(t)(f)))(Tree(_,_))

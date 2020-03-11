@@ -1,5 +1,7 @@
 package fpinscala.iomonad
 
+import fpinscala.iomonad.IO3.Free
+
 import language.postfixOps
 import language.higherKinds
 import scala.io.StdIn.readLine
@@ -372,11 +374,27 @@ object IO3 {
                                f: A => Free[F, B]) extends Free[F, B]
 
   // Exercise 1: Implement the free monad
-  def freeMonad[F[_]]: Monad[({type f[a] = Free[F,a]})#f] = ???
+  def freeMonad[F[_]]: Monad[({type f[a] = Free[F,a]})#f] = new Monad[({type f[a] = Free[F,a]})#f]{
+
+    override def map[A, B](a: Free[F, A])(f: A => B): Free[F, B] = a.map(f)
+
+    override def flatMap[A,B](a: Free[F,A])(f: A => Free[F,B]): Free[F,B] = a.flatMap(f)
+
+    override def unit[A](a: => A): Free[F, A] = Return(a)
+
+  }
 
   // Exercise 2: Implement a specialized `Function0` interpreter.
-  // @annotation.tailrec
-  def runTrampoline[A](a: Free[Function0,A]): A = ???
+   @annotation.tailrec
+  def runTrampoline[A](a: Free[Function0,A]): A = a match {
+     case Return(a) => a
+     case Suspend(r) => r()
+     case FlatMap(x, f) => x match {
+       case Return(a2) => runTrampoline{f(a2)}
+       case Suspend(r) => runTrampoline{f(r())}
+       case FlatMap(y, g) => runTrampoline{y flatMap {a => g(a) flatMap f}}
+     }
+   }
 
   // Exercise 3: Implement a `Free` interpreter which works for any `Monad`
   def run[F[_],A](a: Free[F,A])(implicit F: Monad[F]): F[A] = ???
