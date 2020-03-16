@@ -519,9 +519,17 @@ object IO3 {
   // Exercise 4 (optional, hard): Implement `runConsole` using `runFree`,
   // without going through `Par`. Hint: define `translate` using `runFree`.
 
-  def translate[F[_],G[_],A](f: Free[F,A])(fg: F ~> G): Free[G,A] = ???
+  def translate[F[_],G[_],A](f: Free[F,A])(fg: F ~> G): Free[G,A] = {
+    type FreeG[A] = Free[G,A]
+    val t = new (F ~> FreeG) {
+      def apply[A](a: F[A]): Free[G,A] = Suspend { fg(a) }
+    }
+    runFree(f)(t)(freeMonad[G])
+  }
 
-  def runConsole[A](a: Free[Console,A]): A = ???
+  def runConsole[A](a: Free[Console,A]): A = runTrampoline { translate(a)(new (Console ~> Function0) {
+    def apply[A](c: Console[A]) = c.toThunk
+  })}
 
   /*
   There is nothing about `Free[Console,A]` that requires we interpret
@@ -601,7 +609,19 @@ object IO3 {
 
   def read(file: AsynchronousFileChannel,
            fromPosition: Long,
-           numBytes: Int): Par[Either[Throwable, Array[Byte]]] = ???
+           numBytes: Int): Par[Either[Throwable, Array[Byte]]] =
+    Par.async { (cb: Either[Throwable, Array[Byte]] => Unit) =>
+      val buf = ByteBuffer.allocate(numBytes)
+      file.read(buf, fromPosition, (), new CompletionHandler[Integer, Unit] {
+        def completed(bytesRead: Integer, ignore: Unit) = {
+          val arr = new Array[Byte](bytesRead)
+          buf.slice.get(arr, 0, bytesRead)
+          cb(Right(arr))
+        }
+        def failed(err: Throwable, ignore: Unit) =
+          cb(Left(err))
+      })
+    }
 
   // Provides the syntax `Async { k => ... }` for asyncronous IO blocks.
   def Async[A](cb: (A => Unit) => Unit): IO[A] =
