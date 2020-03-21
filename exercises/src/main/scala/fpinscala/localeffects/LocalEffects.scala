@@ -2,6 +2,8 @@ package fpinscala.localeffects
 
 import fpinscala.monads._
 
+import scala.collection.mutable
+
 object Mutable {
   def quicksort(xs: List[Int]): List[Int] = if (xs.isEmpty) xs else {
     val arr = xs.toArray
@@ -194,25 +196,30 @@ object Immutable {
 import scala.collection.mutable.HashMap
 
 sealed trait STMap[S,K,V] {
-  protected def table: HashMap[K,V]
+  protected def table: mutable.HashMap[K,V]
 
-  def size: ST[S,Int] = ???
+  def size: ST[S,Int] = ST(table.size)
 
   // Get the value under a key
-  def apply(k: K): ST[S,V] = ???
+  def apply(k: K): ST[S,V] = ST(table(k))
 
   // Get the value under a key, or None if the key does not exist
-  def get(k: K): ST[S, Option[V]] = ???
+  def get(k: K): ST[S, Option[V]] = ST(table.get(k))
 
   // Add a value under a key
-  def +=(kv: (K, V)): ST[S,Unit] = ???
+  def +=(kv: (K, V)): ST[S,Unit] = ST(table + (kv._1 -> kv._2))
 
   // Remove a key
-  def -=(k: K): ST[S,Unit] = ???
+  def -=(k: K): ST[S,Unit] = ST(table - k)
 }
 
 object STMap {
-  def empty[S,K,V]: ST[S, STMap[S,K,V]] = ???
+  def empty[S,K,V]: ST[S, STMap[S,K,V]] = ST(new STMap[S, K, V] {
+    lazy val table:mutable.HashMap[K,V] = mutable.HashMap[K,V]()
+  })
 
-  def fromMap[S,K,V](m: Map[K,V]): ST[S, STMap[S,K,V]] = ???
+  def fromMap[S,K,V](m: Map[K,V]): ST[S, STMap[S,K,V]] = ST(new STMap[S, K, V] {
+    lazy val table:mutable.HashMap[K,V] =
+      m.foldLeft(mutable.HashMap[K,V]())((accum:mutable.HashMap[K,V], kv) => accum += kv)
+  })
 }
