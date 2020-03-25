@@ -215,42 +215,43 @@ object SimpleStreamTransducers {
 
   object Process {
 
-    case class Emit[I,O](
-        head: O,
-        tail: Process[I,O] = Halt[I,O]())
-      extends Process[I,O]
+    case class Emit[I, O](
+                           head: O,
+                           tail: Process[I, O] = Halt[I, O]())
+      extends Process[I, O]
 
-    case class Await[I,O](
-        recv: Option[I] => Process[I,O])
-      extends Process[I,O]
+    case class Await[I, O](
+                            recv: Option[I] => Process[I, O])
+      extends Process[I, O]
 
-    case class Halt[I,O]() extends Process[I,O]
+    case class Halt[I, O]() extends Process[I, O]
 
-    def emit[I,O](head: O,
-                  tail: Process[I,O] = Halt[I,O]()): Process[I,O] =
+    def emit[I, O](head: O,
+                   tail: Process[I, O] = Halt[I, O]()): Process[I, O] =
       Emit(head, tail)
 
     // Process forms a monad, and we provide monad syntax for it
 
     import fpinscala.iomonad.Monad
 
-    def monad[I]: Monad[({ type f[x] = Process[I,x]})#f] =
-      new Monad[({ type f[x] = Process[I,x]})#f] {
-        def unit[O](o: => O): Process[I,O] = emit(o)
-        def flatMap[O,O2](p: Process[I,O])(f: O => Process[I,O2]): Process[I,O2] =
+    def monad[I]: Monad[({type f[x] = Process[I, x]})#f] =
+      new Monad[({type f[x] = Process[I, x]})#f] {
+        def unit[O](o: => O): Process[I, O] = emit(o)
+
+        def flatMap[O, O2](p: Process[I, O])(f: O => Process[I, O2]): Process[I, O2] =
           p flatMap f
       }
 
     // enable monadic syntax for `Process` type
-    implicit def toMonadic[I,O](a: Process[I,O]) = monad[I].toMonadic(a)
+    implicit def toMonadic[I, O](a: Process[I, O]) = monad[I].toMonadic(a)
 
     /**
-     * A helper function to await an element or fall back to another process
-     * if there is no input.
-     */
-    def await[I,O](f: I => Process[I,O],
-                   fallback: Process[I,O] = Halt[I,O]()): Process[I,O] =
-      Await[I,O] {
+      * A helper function to await an element or fall back to another process
+      * if there is no input.
+      */
+    def await[I, O](f: I => Process[I, O],
+                    fallback: Process[I, O] = Halt[I, O]()): Process[I, O] =
+      Await[I, O] {
         case Some(i) => f(i)
         case None => fallback
       }
@@ -260,21 +261,21 @@ object SimpleStreamTransducers {
      * simply `Await`, then `Emit` the value received, transformed by
      * `f`.
      */
-    def liftOne[I,O](f: I => O): Process[I,O] =
+    def liftOne[I, O](f: I => O): Process[I, O] =
       Await {
         case Some(i) => emit(f(i))
         case None => Halt()
       }
 
-    def lift[I,O](f: I => O): Process[I,O] =
+    def lift[I, O](f: I => O): Process[I, O] =
       liftOne(f).repeat
 
     /*
      * As an example of `repeat`, here's a definition of `filter` that
      * uses `repeat`.
      */
-    def filter[I](f: I => Boolean): Process[I,I] =
-      Await[I,I] {
+    def filter[I](f: I => Boolean): Process[I, I] =
+      Await[I, I] {
         case Some(i) if f(i) => emit(i)
         case _ => Halt()
       }.repeat
@@ -283,32 +284,69 @@ object SimpleStreamTransducers {
      * Here's a typical `Process` definition that requires tracking some
      * piece of state (in this case, the running total):
      */
-    def sum: Process[Double,Double] = {
-      def go(acc: Double): Process[Double,Double] =
-        await(d => emit(d+acc, go(d+acc)))
+    def sum: Process[Double, Double] = {
+      def go(acc: Double): Process[Double, Double] =
+        await(d => emit(d + acc, go(d + acc)))
+
       go(0.0)
     }
 
     /*
      * Exercise 1: Implement `take`, `drop`, `takeWhile`, and `dropWhile`.
      */
-    def take[I](n: Int): Process[I,I] = {
-        if (n > 0) await((d:I) => emit(d, take(n-1)))
-        else Halt()
-      }
-
-    def drop[I](n: Int): Process[I,I] = {
-        Await[I,I]{
-          case Some(_) if (n>0) => drop(n-1)
-          case Some(i) if (n<=0) => emit(i, drop(n-1))
-          case _ => Halt()
-        }
-
+    def take[I](n: Int): Process[I, I] = {
+      if (n > 0) await((d: I) => emit(d, take(n - 1)))
+      else Halt()
     }
 
-    def takeWhile[I](f: I => Boolean): Process[I,I] = ???
+    // my first solution
+    def dropEdu[I](n: Int): Process[I, I] = {
+      Await[I, I] {
+        case Some(_) if (n > 0) => drop(n - 1)
+        case Some(i) if (n <= 0) => emit(i, drop(n - 1))
+        case _ => Halt()
+      }
+    }
 
-    def dropWhile[I](f: I => Boolean): Process[I,I] = ???
+    //as in the book
+    def drop[I](n: Int): Process[I,I] =
+      if (n <= 0) id
+      else await(i => drop[I](n-1)) // this await has effectively Halt() as fallback
+
+    // my first solution
+    def takeWhileEdu[I](f: I => Boolean): Process[I, I] ={
+    def go(continue: Boolean): Process[I, I] =
+      Await[I, I] {
+        case Some(i) if f(i) && continue => emit(i, go(continue))
+        case _ => Halt()
+      }
+      go(true)
+    }
+
+    //as in the book
+    def takeWhile[I](f: I => Boolean): Process[I,I] =
+      await(i =>
+        if (f(i)) emit(i, takeWhile(f))
+        else      Halt())
+
+    // my first solution
+    def dropWhileEdu[I](f: I => Boolean): Process[I,I] = {
+      def go(start: Boolean): Process[I, I] =
+        Await[I, I] {
+          case Some(i) if f(i) && !start => go(false)
+          case Some(i) if !f(i) && !start => emit(i, go(true))
+          case Some(i) if start => emit(i, go(true))
+          case _ => Halt()
+        }
+      go(false)
+    }
+
+    //as in the book
+    def dropWhile[I](f: I => Boolean): Process[I,I] =
+      await(i =>
+        if (f(i)) dropWhile(f)
+        else      emit(i,id))
+
 
     /* The identity `Process`, just repeatedly echos its input. */
     def id[I]: Process[I,I] = lift(identity)
@@ -316,7 +354,12 @@ object SimpleStreamTransducers {
     /*
      * Exercise 2: Implement `count`.
      */
-    def count[I]: Process[I,Int] = ???
+    def count[I]: Process[I,Int] = {
+      def go(acc: Int): Process[I, Int] =
+        await(_ => emit(acc+1, go(acc+1)))
+
+      go(1)
+    }
 
     /* For comparison, here is an explicit recursive implementation. */
     def count2[I]: Process[I,Int] = {
@@ -328,7 +371,11 @@ object SimpleStreamTransducers {
     /*
      * Exercise 3: Implement `mean`.
      */
-    def mean: Process[Double,Double] = ???
+    def mean: Process[Double,Double] = {
+      def go(acc:Double, n: Double): Process[Double,Double] =
+        await((d: Double) => emit((acc+d)/n+1, go((acc+d), n+1)))
+      go(0.0, 0.0)
+    }
 
     def loop[S,I,O](z: S)(f: (I,S) => (O,S)): Process[I,O] =
       await((i: I) => f(i,z) match {
