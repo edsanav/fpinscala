@@ -1,5 +1,5 @@
 package fpinscala.streamingio
-
+import java.io.{BufferedWriter, File, FileWriter}
 import fpinscala.iomonad.{IO,Monad,Free,unsafePerformIO}
 import language.implicitConversions
 import language.higherKinds
@@ -208,7 +208,9 @@ object SimpleStreamTransducers {
     /*
      * Exercise 6: Implement `zipWithIndex`.
      */
-    def zipWithIndex: Process[I,(O,Int)] = ???
+    def zip[O2](p: Process[I,O2]): Process[I,(O,O2)] = Process.zip(this, p)
+
+    def zipWithIndex: Process[I,(O,Int)] = this.zip(count).map{case(o, i:Int) => (o, i-1)}
 
     /* Add `p` to the fallback branch of this process */
     def orElse(p: Process[I,O]): Process[I,O] = this match {
@@ -411,12 +413,23 @@ object SimpleStreamTransducers {
      * `count`?
      */
 
+    def zip[A,B,C](p1: Process[A,B], p2: Process[A,C]): Process[A,(B,C)] =
+      (p1, p2) match {
+        case (Halt(), _) => Halt()
+        case (_, Halt()) => Halt()
+        case (Emit(o, t1), Emit(o2, t2)) => Emit((o,o2), zip(t1,t2))
+        case (Await(recv1), _) => Await((oa: Option[A]) => zip(recv1(oa), feed(oa)(p2)))
+        case (_, Await(recv2)) => Await((oa: Option[A]) => zip(feed(oa)(p1), recv2(oa)))
+      }
+
     def feed[A,B](oa: Option[A])(p: Process[A,B]): Process[A,B] =
       p match {
         case Halt() => p
         case Emit(h,t) => Emit(h, feed(oa)(t))
         case Await(recv) => recv(oa)
       }
+
+    def meanZip:Process[Double, Double] = sum.zip(count).map{case(s:Double,c:Int) => s/c.toDouble}
 
     /*
      * Exercise 6: Implement `zipWithIndex`.
@@ -430,7 +443,31 @@ object SimpleStreamTransducers {
      * We choose to emit all intermediate values, and not halt.
      * See `existsResult` below for a trimmed version.
      */
-    def exists[I](f: I => Boolean): Process[I,Boolean] = ???
+    def existsMine[I](f: I => Boolean): Process[I,Boolean] = lift(f)
+
+    /*
+    * Exercise 8: Implement `exists`
+    *
+    * We choose to emit all intermediate values, and not halt.
+    * See `existsResult` below for a trimmed version.
+    */
+    def exists[I](f: I => Boolean): Process[I,Boolean] =
+      lift(f) |> any
+
+    /* Emits whether a `true` input has ever been received. */
+    def any: Process[Boolean,Boolean] =
+      loop(false)((b:Boolean,s) => (s || b, s || b))
+
+    /* A trimmed `exists`, containing just the final result. */
+    def existsResult[I](f: I => Boolean) =
+      exists(f) |> takeThrough(!_) |> dropWhile(!_) |> echo.orElse(emit(false))
+
+    /*
+     * Like `takeWhile`, but includes the first element that tests
+     * false.
+     */
+    def takeThrough[I](f: I => Boolean): Process[I,I] =
+      takeWhile(f) ++ echo
 
     /* Awaits then emits a single value, then halts. */
     def echo[I]: Process[I,I] = await(i => emit(i))
@@ -466,6 +503,27 @@ object SimpleStreamTransducers {
 
     def toCelsius(fahrenheit: Double): Double =
       (5.0 / 9.0) * (fahrenheit - 32.0)
+
+    def convertFileToCelsiusNOTWORKINGYET(in:String, out:String):Unit = {
+      val src = new File(in)
+      val srcOut = new File(out)
+      val bw = new BufferedWriter(new FileWriter(srcOut))
+      val E = java.util.concurrent.Executors.newFixedThreadPool(1)
+      val outP = (processFile(
+        src,
+        filter((l:String) => !l.trim.isEmpty).map(_.toDouble).map(toCelsius).map(_.toString + "\n"),
+        bw
+      ){case (bw, l) => bw.write(l); bw}).map(bw => bw.close()) //THis is probably horrendous
+      unsafePerformIO(outP)(E)
+      E.shutdown()
+    }
+
+    //Exercise 9, just as a process
+    def convertFahrenheit: Process[String,String] =
+      // map(f) is equivalent to |> lift(f)
+      filter((l:String) => !l.trim.isEmpty).map((l:String) => toCelsius(l.toDouble).toString)
+
+
   }
 }
 
