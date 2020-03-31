@@ -504,18 +504,15 @@ object SimpleStreamTransducers {
     def toCelsius(fahrenheit: Double): Double =
       (5.0 / 9.0) * (fahrenheit - 32.0)
 
-    def convertFileToCelsiusNOTWORKINGYET(in:String, out:String):Unit = {
+    def convertFileToCelsiusNOTWORKINGYET(in:String, out:String):IO[Unit] = {
       val src = new File(in)
       val srcOut = new File(out)
       val bw = new BufferedWriter(new FileWriter(srcOut))
-      val E = java.util.concurrent.Executors.newFixedThreadPool(1)
-      val outP = (processFile(
+      (processFile(
         src,
         filter((l:String) => !l.trim.isEmpty).map(_.toDouble).map(toCelsius).map(_.toString + "\n"),
         bw
       ){case (bw, l) => bw.write(l); bw}).map(bw => bw.close()) //THis is probably horrendous
-      unsafePerformIO(outP)(E)
-      E.shutdown()
     }
 
     //Exercise 9, just as a process
