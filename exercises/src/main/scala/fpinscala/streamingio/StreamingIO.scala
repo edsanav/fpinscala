@@ -882,10 +882,15 @@ object GeneralizedStreamTransducers {
         { src => eval_ { IO(src.close) } }
 
     /* Exercise 11: Implement `eval`, `eval_`, and use these to implement `lines`. */
-    def eval[F[_],A](a: F[A]): Process[F,A] = ???
+    def eval[F[_],A](a: F[A]): Process[F,A] = await(a)( (ei:Either[Throwable, A]) => ei match {
+        case Left(err) => Halt(err)
+        case Right(a:A) => Emit(a, Halt(Kill))
+    }
+    )
 
     /* Evaluate the action purely for its effects. */
-    def eval_[F[_],A,B](a: F[A]): Process[F,B] = ???
+    def eval_[F[_],A,B](a: F[A]): Process[F,B] = eval[F,A](a).drain[B] //drain exhausts the whole input without emiting
+
 
     /* Helper function with better type inference. */
     def evalIO[A](a: IO[A]): Process[IO,A] =
